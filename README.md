@@ -1,13 +1,13 @@
-# Plan Maestro y Ejecución del Proyecto: SEMARD PWA
+# SEMARD Control Center
 
 > **Semillero de Investigación SEMARD — Universidad de Cartagena**  
 > **Backend:** Go (Golang) | **Base de Datos:** PostgreSQL (Coolify VM) | **Frontend:** PWA (Next.js / React)
 
 ---
 
-## 1. Definición Exacta de los 4 Roles del Sistema
+## 1. Definición de los 4 Roles del Sistema
 
-El sistema cuenta estrictamente con **4 roles**:
+El sistema cuenta con 4 roles principales:
 
 1. **Directores**: Máxima autoridad del semillero. Creación de proyectos, evaluación de avances y recursos, decisiones institucionales y aprobación de nuevos registros.
 2. **Administrador**: Gestión logística, inventario, aprobación de préstamos y de solicitudes 3D.
@@ -16,9 +16,6 @@ El sistema cuenta estrictamente con **4 roles**:
    * Pueden solicitar préstamos de insumos y solicitudes de impresión 3D.
    * Aquellos con el permiso especial de **Operador 3D** pueden gestionar y ejecutar impresiones aprobadas.
 4. **Público (Visitantes / Comunidad Universitaria)**: Usuarios sin cuenta o sin sesión iniciada.
-
-> [!NOTE]
-> **No existe rol de Tutor en el sistema**. Cuando se habla de "encargados de proyectos", se refiere a cualquier usuario con rol de **Miembro**, **Administrador** o **Director** que haya sido asignado a un proyecto específico por un Director.
 
 ---
 
@@ -125,168 +122,14 @@ El sistema cuenta estrictamente con **4 roles**:
 
 ---
 
-## 6. Diseño de Base de Datos (PostgreSQL en Coolify)
+## 6. Modelo de Datos y Entidades
 
-```sql
--- Tipos Enumerados
-CREATE TYPE user_role AS ENUM ('DIRECTOR', 'ADMINISTRADOR', 'MIEMBRO');
-CREATE TYPE registration_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
-CREATE TYPE project_status AS ENUM ('DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED');
-CREATE TYPE update_status AS ENUM ('PENDING', 'APPROVED', 'CHANGES_REQUESTED');
-CREATE TYPE resource_type AS ENUM ('DIGITAL', 'ECONOMIC', 'KNOWLEDGE', 'HARDWARE');
-CREATE TYPE resource_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'RETURNED_FOR_MODIFICATION');
-CREATE TYPE loan_status AS ENUM ('PENDING', 'APPROVED', 'APPROVED_MODIFIED', 'REJECTED', 'RETURNED', 'OVERDUE');
-CREATE TYPE print3d_status AS ENUM ('PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'DELIVERED', 'REJECTED');
-CREATE TYPE event_visibility AS ENUM ('PUBLIC', 'INTERNAL');
-
--- Usuarios
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    google_id VARCHAR(255) UNIQUE,
-    email VARCHAR(255) UNIQUE NOT NULL, -- @unicartagena.edu.co
-    student_code VARCHAR(50) UNIQUE,
-    full_name VARCHAR(255) NOT NULL,
-    role user_role NOT NULL DEFAULT 'MIEMBRO',
-    can_operate_3d BOOLEAN NOT NULL DEFAULT FALSE,
-    avatar_url TEXT,
-    bio TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Solicitudes de Registro de Nuevos Miembros
-CREATE TABLE registration_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    google_id VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    student_code VARCHAR(50) NOT NULL,
-    career_program VARCHAR(255),
-    motivation_letter TEXT,
-    status registration_status NOT NULL DEFAULT 'PENDING',
-    director_feedback TEXT,
-    reviewed_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    reviewed_at TIMESTAMPTZ
-);
-
--- Proyectos (Creados solo por Directores)
-CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    research_line VARCHAR(255) NOT NULL,
-    status project_status NOT NULL DEFAULT 'ACTIVE',
-    created_by UUID NOT NULL REFERENCES users(id),
-    start_date DATE NOT NULL,
-    target_end_date DATE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Encargados y Participantes (Miembros, Admins o Directores)
-CREATE TABLE project_members (
-    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    is_lead BOOLEAN NOT NULL DEFAULT FALSE,
-    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (project_id, user_id)
-);
-
--- Avances de Proyecto (Aprobados por Directores con Feedback)
-CREATE TABLE project_updates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    submitted_by UUID NOT NULL REFERENCES users(id), -- Encargado del proyecto
-    title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    attachments_url JSONB DEFAULT '[]'::jsonb,
-    status update_status NOT NULL DEFAULT 'PENDING',
-    director_feedback TEXT,
-    reviewed_by UUID REFERENCES users(id), -- Director que evalúa
-    reviewed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Solicitudes de Recursos del Proyecto
-CREATE TABLE resource_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    requested_by UUID NOT NULL REFERENCES users(id), -- Encargado del proyecto
-    resource_type resource_type NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    estimated_cost NUMERIC(12, 2) DEFAULT 0.00,
-    status resource_status NOT NULL DEFAULT 'PENDING',
-    director_feedback TEXT, -- Feedback obligatorio si es rechazada o devuelta
-    reviewed_by UUID REFERENCES users(id), -- Director que evalúa
-    reviewed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Inventario y Préstamos
-CREATE TABLE inventory_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code VARCHAR(100) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    description TEXT,
-    total_stock INT NOT NULL DEFAULT 1,
-    available_stock INT NOT NULL DEFAULT 1,
-    location VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE loan_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    item_id UUID NOT NULL REFERENCES inventory_items(id),
-    requested_by UUID NOT NULL REFERENCES users(id),
-    reason TEXT NOT NULL,
-    requested_start_date DATE NOT NULL,
-    requested_end_date DATE NOT NULL,
-    approved_end_date DATE,
-    status loan_status NOT NULL DEFAULT 'PENDING',
-    reviewer_feedback TEXT,
-    reviewed_by UUID REFERENCES users(id), -- Director o Administrador
-    returned_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Solicitudes de Impresión 3D
-CREATE TABLE print3d_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    requested_by UUID NOT NULL REFERENCES users(id),
-    project_id UUID REFERENCES projects(id),
-    file_path TEXT NOT NULL,
-    file_name VARCHAR(255) NOT NULL,
-    material VARCHAR(50) NOT NULL,
-    color VARCHAR(50),
-    infill_percentage INT NOT NULL DEFAULT 20,
-    notes TEXT,
-    status print3d_status NOT NULL DEFAULT 'PENDING',
-    reviewer_feedback TEXT,
-    approved_by UUID REFERENCES users(id), -- Exclusivo Director o Administrador
-    operator_id UUID REFERENCES users(id), -- Director, Administrador u Operador 3D que ejecuta
-    approved_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Eventos
-CREATE TABLE events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    visibility event_visibility NOT NULL DEFAULT 'PUBLIC',
-    start_time TIMESTAMPTZ NOT NULL,
-    end_time TIMESTAMPTZ,
-    location VARCHAR(255) NOT NULL,
-    banner_url TEXT,
-    created_by UUID NOT NULL REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
+La persistencia de datos se gestiona en **PostgreSQL** mediante migraciones versionadas y controladas, estructurando las siguientes entidades principales:
+* **Usuarios y Membresías:** Cuentas institucionales (`@unicartagena.edu.co`), roles del sistema (`DIRECTOR`, `ADMINISTRADOR`, `MIEMBRO`), permiso especial de `Operador 3D` y solicitudes de registro.
+* **Proyectos de Investigación:** Proyectos creados por directores, asignación de encargados, bitácora de avances, retroalimentación y solicitudes de recursos.
+* **Inventario y Préstamos:** Catálogo de herramientas y equipos electrónicos, solicitudes de préstamo con control de tiempos, notificaciones por ajustes y trazabilidad de devoluciones.
+* **Taller de Impresión 3D:** Solicitudes de manufactura aditiva con parámetros técnicos y almacenamiento de archivos 3D, aprobaciones y cola de ejecución.
+* **Eventos:** Agenda y cartelera de eventos con visibilidad pública o interna protegida.
 
 ---
 
@@ -304,13 +147,13 @@ CREATE TABLE events (
 
 ### Fase 2: Autenticación Híbrida y Gestión de Miembros
 * Integración de Google OAuth 2.0 restringido a correos `@unicartagena.edu.co`.
-* Lógica de verificación contra el padrón de usuarios (`users`) y generación de tokens JWT.
-* Flujo de solicitud de registro para usuarios no listados (`registration_requests`).
-* Endpoints para que los Directores listen, aprueben (asignando rol y código) o rechacen solicitudes con observaciones.
+* Lógica de verificación contra el padrón de usuarios y generación de tokens JWT.
+* Flujo de solicitud de registro para usuarios no listados.
+* Endpoints para que los Directores listen, aprueben o rechacen solicitudes con observaciones.
 
 ### Fase 3: Módulo Logístico de Proyectos
 * Endpoints de creación de proyectos (exclusivo para Directores).
-* Endpoints de asignación de miembros (Miembros, Administradores o Directores como encargados).
+* Endpoints de asignación de miembros como encargados.
 * Endpoints para que los encargados envíen avances con archivos adjuntos.
 * Flujo de revisión de avances por parte de Directores (Aprobación / Solicitud de cambios con feedback).
 * Endpoints para solicitudes de recursos de proyectos y su ciclo de vida (`Aprobada`, `Rechazada`, `Devuelta para Modificaciones`).
