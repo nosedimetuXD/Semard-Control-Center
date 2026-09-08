@@ -9,7 +9,7 @@
 
 El sistema cuenta con 4 roles principales:
 
-1. **Directores**: Máxima autoridad del semillero. Creación de proyectos, evaluación de avances y recursos, decisiones institucionales y aprobación de nuevos registros.
+1. **Directores**: Máxima autoridad del semillero. Creación de proyectos, creación y gestión de eventos (públicos e internos), evaluación de avances y recursos, decisiones institucionales y aprobación de nuevos registros.
 2. **Administrador**: Gestión logística, inventario, aprobación de préstamos y de solicitudes 3D.
 3. **Miembros**: Estudiantes integrantes del semillero con cuenta activa.
    * Pueden ser asignados a proyectos como **encargados**.
@@ -30,7 +30,7 @@ El sistema cuenta con 4 roles principales:
 | **Ver Vitrina General de Proyectos y sus Estados** | ❌ **Solo Miembros** | ✅ **Acceso Total** | ✅ **Acceso Total** | ✅ **Acceso Total** | Hereda Miembro |
 | **Crear Solicitud de Ingreso (Google Auth)** | ✅ **Puede solicitar** | Ya es miembro | Ya es miembro | Ya es miembro | - |
 | **Ver Eventos Internos (Reuniones/Actas)** | ❌ Requiere cuenta | ✅ Acceso | ✅ Acceso | ✅ Acceso | Hereda Miembro |
-| **Crear y Publicar Eventos (Públicos/Internos)** | ❌ | ❌ | ✅ **Puede gestionar** | ✅ **Puede gestionar** | ❌ |
+| **Crear y Publicar Eventos (Públicos/Internos)** | ❌ | ❌ | ❌ | ✅ **Exclusivo Directores** | ❌ |
 | **Solicitar Préstamos de Equipos** | ❌ | ✅ Puede solicitar | ✅ Puede solicitar | ✅ Puede solicitar | Hereda Miembro |
 | **Aprobar / Modificar Plazo / Rechazar Préstamos** | ❌ | ❌ | ✅ **Aprueba / Rechaza** | ✅ **Aprueba / Rechaza** | ❌ |
 | **Solicitar Impresión 3D** | ❌ | ✅ Puede solicitar | ✅ Puede solicitar | ✅ Puede solicitar | Hereda Miembro |
@@ -49,12 +49,12 @@ El sistema cuenta con 4 roles principales:
 ## 3. División Modular del Sistema
 
 ### Módulo 1: Hub Institucional SEMARD
-* **1.1 Eventos Abiertos al Público:** Agenda, fechas, ponentes y formulario de registro para ferias, talleres abiertos y conferencias. **Accesible para el Público**.
+* **1.1 Eventos Abiertos al Público:** Agenda, fechas, ponentes y formulario de registro para ferias, talleres abiertos y conferencias (creación exclusiva por Directores). **Accesible para el Público**.
 * **1.2 Información del Semillero & Portafolio Público:**
   * Misión, visión, historia y líneas de investigación activas.
   * **Portafolio Público de Proyectos:** Exhibición para el público general **exclusivamente de los proyectos que se encuentren marcados como finalizados**.
 * **1.3 Perfiles de Directores:** Tarjetas con fotografía profesional, biografía resumida, trayectoria investigativa y enlaces a perfiles académicos. **Accesible para el Público**.
-* **1.4 Eventos Internos:** Cartelera protegida (requiere inicio de sesión institucional con rol Miembro, Administrador o Director). Cronograma de reuniones semanales, entregas de avances, sustentaciones y actas.
+* **1.4 Eventos Internos:** Cartelera protegida con agenda de reuniones semanales, entregas de avances, sustentaciones y actas (creación exclusiva por Directores). Visible únicamente para integrantes autenticados (**Miembros**, **Administradores**, **Directores**).
 
 ### Módulo 2: App de Gestión Logística y Operativa
 
