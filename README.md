@@ -133,118 +133,129 @@ La persistencia de datos se gestiona en **PostgreSQL** mediante migraciones vers
 
 ---
 
-## 7. Plan de Fases de Desarrollo (Roadmap por Etapas)
+## 7. Plan de Desarrollo Dividido en Equipos (2 Backend + 2 Frontend)
 
-El desarrollo del proyecto se estructura en **6 etapas secuenciales**, garantizando entregables funcionales y verificables al final de cada hito:
+Para optimizar el trabajo del equipo de **4 desarrolladores**, el proyecto se organiza en dos tracks de desarrollo paralelo sincronizados mediante **contratos de API (Swagger / OpenAPI)**:
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Etapa 1    │ ──► │   Etapa 2    │ ──► │   Etapa 3    │
-│ Infra & Base │     │ Auth & Users │     │ Hub & Eventos│
-└──────────────┘     └──────────────┘     └──────────────┘
-       │
-       ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Etapa 4    │ ──► │   Etapa 5    │ ──► │   Etapa 6    │
-│ Proyectos &  │     │ Inventario & │     │ Frontend PWA │
-│ Recursos     │     │ Taller 3D    │     │ & Despliegue │
-└──────────────┘     └──────────────┘     └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       ARQUITECTURA DEL EQUIPO (4 DEVS)                      │
+├──────────────────────────────────────┬──────────────────────────────────────┤
+│       TRACK BACKEND (2 Devs)         │       TRACK FRONTEND (2 Devs)        │
+│          [ Go + PostgreSQL ]         │      [ Next.js + PWA + Tailwind ]    │
+└──────────────────┬───────────────────┴──────────────────┬───────────────────┘
+                   │                                      │
+                   ▼                                      ▼
+           [ Dev B1 & Dev B2 ]                    [ Dev F1 & Dev F2 ]
+       Infra, Modelos, Lógica API             UI/UX, Estado, PWA, Vistas
+                   │                                      │
+                   └───────────────► ◄────────────────────┘
+                          Hitos de Integración
 ```
 
 ---
 
-### Etapa 1: Cimientos de Infraestructura, Base de Datos y Arquitectura Go
-* **Objetivo:** Establecer la base técnica del backend en Go bajo arquitectura limpia, orquestación con Docker y despliegue inicial en Coolify.
-* **Tareas Clave:**
-  - Inicialización del módulo de Go (`go mod init semard-api`) con Go 1.23+.
-  - Estructuración modular limpia (`cmd/api`, `internal/config`, `internal/database`, `internal/domain`, `internal/repository`, `internal/service`, `internal/handler`, `internal/middleware`).
-  - Configuración del sistema de migraciones versionadas (`golang-migrate`) con la base de datos PostgreSQL.
-  - Creación del `Dockerfile` multi-stage optimizado (~20MB) y `docker-compose.yml` para despliegue local y en Coolify.
-  - Middlewares base: Logging estructurado, CORS, Recover contra panics y endpoint de Healthcheck (`/healthz`).
-* **Entregables:**
-  - Repositorio backend funcional.
-  - Base de datos PostgreSQL conectada y con migraciones ejecutadas automáticamente.
-  - Pipeline de despliegue en Coolify operativo.
+### 7.1 Estructura del Repositorio (Monorepo)
+```
+Semard-Control-Center/
+├── backend/            # Track Backend (Go 1.23+, chi, pgx, migraciones)
+│   ├── cmd/api/
+│   ├── internal/
+│   ├── migrations/
+│   ├── Dockerfile
+│   └── docker-compose.yml
+├── frontend/           # Track Frontend (Next.js 15, React, Tailwind, PWA)
+│   ├── src/
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── lib/
+│   │   └── hooks/
+│   ├── public/
+│   └── package.json
+└── docs/               # Documentación y Contratos de API (OpenAPI / Postman)
+```
 
 ---
 
-### Etapa 2: Módulo de Identidad, Autenticación Híbrida y Gestión de Usuarios
-* **Objetivo:** Implementar el control de acceso, inicio de sesión institucional y el ciclo de admisión de miembros.
-* **Tareas Clave:**
-  - Integración de Google OAuth 2.0 con validación estricta de dominio (`@unicartagena.edu.co`).
-  - Lógica de verificación contra el padrón de usuarios y generación de JWT con claims de rol (`DIRECTOR`, `ADMINISTRADOR`, `MIEMBRO`) y flag `can_operate_3d`.
-  - Formulario y endpoint para solicitudes de nuevo registro (`registration_requests`) con código estudiantil, programa y motivación.
-  - Panel de Directores: endpoints para listar solicitudes pendientes, aprobar (asignando rol) o rechazar con retroalimentación.
-  - Middleware de autorización RBAC para proteger rutas según rol y permisos especiales.
-* **Entregables:**
-  - Autenticación con Google institucional 100% operativa.
-  - Cola de solicitudes de membresía con flujo de aprobación por Directores.
-  - Seguridad perimetral con tokens JWT y control de acceso por roles.
+### 7.2 Track Backend (2 Desarrolladores)
+
+* **Stack:** Go 1.23+, `go-chi/chi/v5`, `jackc/pgx/v5`, `golang-migrate`, Docker y Coolify.
+* **Distribución de Roles:**
+  - **Dev B1 (Infra, Auth & Proyectos):** Arquitectura base, conexión DB, autenticación Google OAuth + JWT, RBAC y módulo central de proyectos y recursos.
+  - **Dev B2 (Hub, Inventario & Taller 3D):** Módulo de eventos, catálogo de herramientas/préstamos, almacenamiento de archivos STL/OBJ y cola de impresión 3D.
+
+#### Fases del Backend:
+* **Fase B1: Infraestructura, Migraciones y Auth Google (Semana 1)**
+  - Configuración del módulo de Go, Clean Architecture y contenedor multi-stage.
+  - Creación de migraciones SQL con todas las tablas del sistema.
+  - Flujo Google OAuth 2.0 (`@unicartagena.edu.co`) con emisión de JWT y verificación de padrón vs `registration_requests`.
+  - Endpoint de Healthcheck (`/healthz`) y despliegue inicial en Coolify.
+* **Fase B2: Gestión de Miembros y Módulo del Hub (Semana 2)**
+  - Endpoints para Directores: aprobación/rechazo de solicitudes de registro con feedback.
+  - Endpoints informativos del semillero y equipo directivo.
+  - Portafolio público: filtro de proyectos finalizados (`COMPLETED`).
+  - Módulo de Eventos: creación exclusiva por Directores, listados públicos y eventos internos protegidos.
+* **Fase B3: Módulo Logístico de Proyectos y Recursos (Semana 3)**
+  - Creación de proyectos (exclusivo Directores) y asignación de encargados.
+  - Subida de avances por encargados y evaluación con feedback por Directores.
+  - Peticiones de recursos (digital, económico, conocimiento, hardware) con ciclo de 3 estados (`APPROVED`, `REJECTED`, `RETURNED_FOR_MODIFICATION`).
+  - Endpoints diferenciados: Vitrina general interna vs "Mis Proyectos".
+* **Fase B4: Inventario, Préstamos y Taller de Impresión 3D (Semana 4)**
+  - CRUD de inventario y solicitudes de préstamo con ajuste de plazo y feedback.
+  - Subida y almacenamiento seguro de modelos 3D (.STL, .OBJ).
+  - Aprobación/rechazo técnico 3D por Directores/Admins y cola de ejecución para Operadores 3D.
+* **Fase B5: Storage, Notificaciones, Pruebas y Despliegue VM (Semana 5)**
+  - Sistema de notificaciones in-app y alertas de correo/web push.
+  - Pruebas unitarias e integración de endpoints críticos.
+  - Configuración final de producción en Coolify.
 
 ---
 
-### Etapa 3: Módulo del Hub Institucional, Divulgación y Eventos
-* **Objetivo:** Desarrollar los servicios de cara al público y la cartelera de eventos del semillero.
-* **Tareas Clave:**
-  - Endpoints públicos de información del semillero (misión, visión, líneas de investigación, contacto).
-  - Endpoints públicos de perfiles directivos (fotos, biografías, redes académicas).
-  - **Portafolio Público de Proyectos:** Consulta pública filtrada **exclusivamente para proyectos marcados como finalizados** (`COMPLETED`).
-  - **Módulo de Eventos (Creación exclusiva por Directores):**
-    - Eventos públicos: listado abierto, detalle de agenda y registro de asistentes externos.
-    - Eventos internos: listado protegido para miembros del semillero con actas y cronograma interno.
-* **Entregables:**
-  - API completa del Hub para consulta abierta.
-  - Sistema de gestión de eventos con control estricto de visibilidad (pública vs interna).
+### 7.3 Track Frontend (2 Desarrolladores)
+
+* **Stack:** Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui y soporte PWA.
+* **Distribución de Roles:**
+  - **Dev F1 (Core PWA, Auth & App Logística de Proyectos):** Shell de la aplicación, estado de autenticación Google, dashboard administrativo, gestión de proyectos, avances y recursos.
+  - **Dev F2 (Hub Institucional, UI/UX, Inventario & Taller 3D):** Vistas públicas del Hub, eventos, vitrina, módulo visual de inventario/préstamos, visor/subida de archivos 3D y manifiesto PWA.
+
+#### Fases del Frontend:
+* **Fase F1: Setup PWA, Design System y Flujo de Login (Semana 1)**
+  - Inicialización del proyecto Next.js con Tailwind CSS, TypeScript y componentes base.
+  - Configuración inicial de PWA (Web App Manifest, iconos e instalabilidad).
+  - Pantalla de inicio de sesión con Google institucional.
+  - Formulario modal de solicitud de ingreso para estudiantes no registrados previamente.
+* **Fase F2: SEMARD Hub y Gestión de Eventos (Semana 2)**
+  - Landing page institucional con áreas de investigación y portafolio de proyectos concluidos.
+  - Perfiles y biografías de Directores.
+  - Cartelera pública de eventos con formulario de inscripción.
+  - Cartelera de eventos internos con actas (protegida para miembros autenticados).
+  - Panel de creación de eventos para Directores.
+* **Fase F3: Panel de Proyectos, Avances y Recursos (Semana 3)**
+  - Vitrina interna de proyectos para consulta de todos los miembros.
+  - Espacio de trabajo "Mis Proyectos" para los encargados asignados.
+  - Formulario de entrega de avances y visor de feedback del Director.
+  - Interfaz de solicitudes de recursos con badges de estado (Aprobada, Rechazada, Devuelta con observaciones).
+  - Panel para Directores: aprobación de avances y revisión de recursos con retroalimentación.
+* **Fase F4: Módulo de Inventario, Préstamos e Impresión 3D (Semana 4)**
+  - Catálogo interactivo de herramientas electrónicas y formulario de solicitud de préstamo.
+  - Panel de gestión de préstamos para Directores/Administradores (aprobar, modificar fecha o rechazar).
+  - Formulario de solicitud de impresión 3D con carga de archivos STL/OBJ y selección de parámetros.
+  - Tablero Kanban o cola de impresión para Directores, Administradores y Operadores 3D.
+* **Fase F5: Cacheo Offline, Notificaciones y Auditoría PWA (Semana 5)**
+  - Configuración del Service Worker para cacheo offline del Hub y eventos.
+  - Centro de notificaciones in-app con campana y push notifications.
+  - Pruebas responsivas en móvil y escritorio, auditoría Lighthouse (PWA > 90%).
 
 ---
 
-### Etapa 4: Módulo Logístico de Proyectos, Avances y Recursos
-* **Objetivo:** Construir la plataforma para la gestión, seguimiento y financiamiento de proyectos de investigación.
-* **Tareas Clave:**
-  - **Creación de Proyectos:** Restringida exclusivamente a usuarios con rol `DIRECTOR`.
-  - **Asignación de Encargados:** Asignación formal de Miembros, Administradores o Directores como encargados del proyecto.
-  - **Avances y Entregables:** Carga de reportes y enlaces por los encargados (estado `PENDING`).
-  - **Evaluación de Avances:** Aprobación exclusiva por Directores con **feedback técnico obligatorio**.
-  - **Peticiones de Recursos:**
-    - Solicitud por encargados en categorías (digital, económica, conocimiento, hardware).
-    - Decisión por Directores en 3 estados: `Aprobada`, `Rechazada` o `Devuelta para Modificaciones` (con justificación obligatoria).
-  - **Doble Vista de Proyectos:**
-    - Vitrina general interna para todos los miembros del semillero (todos los proyectos y sus estados en tiempo real).
-    - Panel operativo ("Mis Proyectos") donde los encargados solo interactúan con sus proyectos asignados.
-* **Entregables:**
-  - Flujo de vida completo de proyectos con trazabilidad de avances y feedbacks.
-  - Motor de peticiones de recursos con ciclo de 3 estados.
+### 7.4 Hitos de Integración y Sincronización (Milestones 2+2)
 
----
+Para evitar bloqueos y asegurar que ambos equipos avancen coordinadamente:
 
-### Etapa 5: Módulo Logístico de Inventario, Préstamos y Taller de Impresión 3D
-* **Objetivo:** Automatizar el préstamo de instrumental de laboratorio y la producción de piezas 3D.
-* **Tareas Clave:**
-  - **Inventario:** CRUD de herramientas electrónicas, guías y consumibles con disponibilidad de stock.
-  - **Préstamo de Recursos:**
-    - Solicitud con justificación y tiempo de préstamo solicitado.
-    - Aprobación por Directores o Administradores: capacidad de aprobar o **modificar el plazo concedido** (con notificación obligatoria al solicitante).
-    - Rechazo con feedback obligatorio.
-    - Control de entrega y devolución física.
-  - **Taller de Impresión 3D:**
-    - Carga y almacenamiento seguro de modelos 3D (.STL, .OBJ, .STEP) y especificaciones (material, color, infill).
-    - Aprobación o rechazo técnico exclusivo por **Directores y Administradores** (con motivo técnico si se rechaza).
-    - Cola de ejecución y cambio de estados (`Aprobada` ➔ `En Cola` ➔ `Imprimiendo` ➔ `Completada` ➔ `Entregada`) operada por **Directores, Administradores y Operadores 3D certificados**.
-* **Entregables:**
-  - Módulo de préstamos con control de plazos y notificaciones.
-  - Cola de manufactura 3D con roles de operador autorizados.
-
----
-
-### Etapa 6: Frontend PWA, Notificaciones, Pruebas y Despliegue en Producción
-* **Objetivo:** Desarrollar la aplicación cliente PWA, integrar notificaciones y poner en marcha la solución completa.
-* **Tareas Clave:**
-  - Definición de UI/UX, componentes visuales e identidad gráfica de SEMARD.
-  - Desarrollo de la interfaz en **Next.js / React** consumiendo la API de Go.
-  - Implementación de capacidades PWA: Web App Manifest, Service Worker para cacheo offline de datos del Hub e instalabilidad en móviles y escritorio.
-  - Centro de notificaciones in-app y alertas web push/correo (avances evaluados, recursos devueltos, préstamos modificados, impresión 3D lista).
-  - Pruebas integradas de flujos, validación de permisos RBAC y auditoría de accesibilidad/rendimiento.
-  - Despliegue final en la máquina virtual mediante Coolify y documentación técnica de entrega.
-* **Entregables:**
-  - PWA SEMARD instalable y totalmente conectada al backend en Go.
-  - Plataforma desplegada y operativa en producción.
+| Hito | Semana | Objetivo de Integración | Verificación Conjunta |
+| :--- | :---: | :--- | :--- |
+| **M1: Auth & Setup** | Fin Semana 1 | Login de Google conectado a la API de Go y generación de sesión JWT en el cliente. | Inicio de sesión funcional en frontend contra el backend en Go. |
+| **M2: Hub & Eventos** | Fin Semana 2 | Hub público alimentado dinámicamente desde la base de datos y eventos operativos. | Crear un evento como Director y visualizarlo en la vista pública e interna. |
+| **M3: Proyectos & Flujo** | Fin Semana 3 | Ciclo completo de proyectos: creación, avances, feedback y recursos. | Un encargado envía avance/recurso y el Director lo evalúa con feedback en la UI. |
+| **M4: Logística & 3D** | Fin Semana 4 | Préstamos de equipos e impresión 3D conectados de punta a punta. | Solicitar préstamo/impresión y gestionarlo como Admin/Operador 3D desde la interfaz. |
+| **M5: Despliegue Final** | Fin Semana 5 | Integración completa, pruebas E2E y despliegue de Backend + Frontend en Coolify. | Auditoría PWA, instalación en smartphone y prueba integral en producción. |
