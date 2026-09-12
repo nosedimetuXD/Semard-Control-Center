@@ -70,7 +70,7 @@ type LoginResponse struct {
 	} `json:"google_data,omitempty"`
 }
 
-// GoogleLogin inicia el flujo OAuth y devuelve la URL para redirigir
+// GoogleLogin inicia el flujo OAuth y devuelve la URL o redirige al navegador
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
@@ -78,6 +78,12 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Solicitar prompt select_account para permitir elegir cuenta institucional
 	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "select_account"))
+
+	// Si se accede desde un navegador web directamente o pide redirect=true, redirigir
+	if r.URL.Query().Get("redirect") == "true" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+		return
+	}
 
 	JSON(w, http.StatusOK, map[string]string{
 		"auth_url": url,
@@ -119,6 +125,24 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Validar dominio universitario estricto
 	if !strings.HasSuffix(strings.ToLower(gUser.Email), strings.ToLower(h.cfg.AllowedEmailDomain)) {
 		Error(w, http.StatusForbidden, fmt.Sprintf("Solo se permite acceso con correos institucionales (%s)", h.cfg.AllowedEmailDomain))
+		return
+	}
+
+	// Fallback de desarrollo: Si la base de datos aún no está conectada localmente
+	if h.db == nil {
+		JSON(w, http.StatusOK, map[string]interface{}{
+			"status":  "GOOGLE_AUTH_SUCCESS_TEST_MODE",
+			"message": "Autenticación exitosa con Google y validación del dominio @unicartagena.edu.co aprobada.",
+			"google_profile": map[string]interface{}{
+				"google_id":      gUser.ID,
+				"email":          gUser.Email,
+				"full_name":      gUser.Name,
+				"picture_url":    gUser.Picture,
+				"verified_email": gUser.VerifiedEmail,
+				"hosted_domain":  gUser.HD,
+			},
+			"database_status": "disconnected (conecta PostgreSQL para persistencia de usuarios)",
+		})
 		return
 	}
 
