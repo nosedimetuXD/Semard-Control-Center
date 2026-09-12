@@ -61,3 +61,21 @@ type JWTClaims struct {
 	CanOperate3D bool      `json:"can_operate_3d"`
 	jwt.RegisteredClaims
 }
+
+type UpdateRoleRequest struct {
+	Role UserRole `json:"role"`
+}
+
+type UpdatePermissionsRequest struct {
+	CanOperate3D bool `json:"can_operate_3d"`
+}
+
+type UpdateStatusRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+type UpdateProfileRequest struct {
+	Bio         *string `json:"bio,omitempty"`
+	StudentCode *string `json:"student_code,omitempty"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+}

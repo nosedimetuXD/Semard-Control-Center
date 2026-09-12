@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/nosedimetuXD/Semard-Control-Center/backend/internal/domain"
 )
 
@@ -109,3 +110,13 @@ func GetUserClaims(r *http.Request) (*domain.JWTClaims, bool) {
 	claims, ok := r.Context().Value(UserContextKey).(*domain.JWTClaims)
 	return claims, ok
 }
+
+// GetUserID extrae el ID del usuario del contexto actual
+func GetUserID(ctx context.Context) (uuid.UUID, error) {
+	claims, ok := ctx.Value(UserContextKey).(*domain.JWTClaims)
+	if !ok || claims == nil {
+		return uuid.Nil, errors.New("usuario no autenticado en contexto")
+	}
+	return claims.UserID, nil
+}
+

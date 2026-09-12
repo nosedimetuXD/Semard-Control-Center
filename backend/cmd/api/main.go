@@ -38,9 +38,9 @@ func main() {
 		log.Printf("Aviso de Conexión DB: %v (el servidor continuará para chequeos de salud)", err)
 	} else {
 		defer db.Close()
-		// Intentar auto-migración si existe el archivo
-		migrationPath := "migrations/000001_init_schema.up.sql"
-		if err := database.RunInitialMigration(context.Background(), db, migrationPath); err != nil {
+		// Ejecutar todas las migraciones en orden
+		migrationsDir := "migrations"
+		if err := database.RunMigrations(context.Background(), db, migrationsDir); err != nil {
 			log.Printf("Aviso en migración automática: %v", err)
 		}
 	}
@@ -57,6 +57,9 @@ func main() {
 	// 4. Inicializar handlers
 	healthHandler := handler.NewHealthHandler(db)
 	authHandler := handler.NewAuthHandler(cfg, db)
+	userHandler := handler.NewUserHandler(db)
+	eventHandler := handler.NewEventHandler(db)
+	hubHandler := handler.NewHubHandler(db)
 
 	// 5. Definir Rutas
 	// 5.1 Monitoreo y Salud
@@ -72,7 +75,14 @@ func main() {
 
 	// 5.2 API v1
 	r.Route("/api/v1", func(r chi.Router) {
-		// Rutas públicas de Autenticación
+		// Módulo Hub Institucional Público
+		r.Route("/hub", func(r chi.Router) {
+			r.Get("/info", hubHandler.GetHubInfo)
+			r.Get("/directors", hubHandler.GetDirectors)
+			r.Get("/projects", hubHandler.GetPublicProjects)
+		})
+
+		// Rutas públicas y privadas de Autenticación
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/google/login", authHandler.GoogleLogin)
 			r.Get("/google/callback", authHandler.GoogleCallback)
@@ -82,6 +92,39 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.RequireAuth(cfg.JWTSecret))
 				r.Get("/me", authHandler.GetCurrentUser)
+				r.Put("/me", userHandler.UpdateProfile)
+			})
+		})
+
+		// Módulo de Directorio de Miembros
+		r.Route("/users", func(r chi.Router) {
+			r.Use(middleware.RequireAuth(cfg.JWTSecret))
+			r.Get("/", userHandler.ListUsers)
+			r.Get("/{id}", userHandler.GetUser)
+		})
+
+		// Módulo de Eventos (Públicos e Internos)
+		r.Route("/events", func(r chi.Router) {
+			// Consulta y registro público
+			r.Get("/public", eventHandler.ListPublicEvents)
+			r.Get("/{id}", eventHandler.GetEvent)
+			r.Post("/{id}/register", eventHandler.RegisterAttendee)
+
+			// Consulta interna para miembros del semillero
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireAuth(cfg.JWTSecret))
+				r.Get("/internal", eventHandler.ListInternalEvents)
+
+				// Ver inscritos (Admin o Director)
+				r.With(middleware.RequireAdminOrDirector()).Get("/{id}/attendees", eventHandler.ListAttendees)
+
+				// Gestión exclusiva para Directores
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireDirector())
+					r.Post("/", eventHandler.CreateEvent)
+					r.Put("/{id}", eventHandler.UpdateEvent)
+					r.Delete("/{id}", eventHandler.DeleteEvent)
+				})
 			})
 		})
 
@@ -93,6 +136,11 @@ func main() {
 			// Gestión de solicitudes de registro
 			r.Get("/registration-requests", authHandler.GetPendingRequests)
 			r.Post("/registration-requests/{id}/review", authHandler.ReviewRequest)
+
+			// Gestión de integrantes y roles
+			r.Patch("/users/{id}/role", userHandler.UpdateRole)
+			r.Patch("/users/{id}/permissions", userHandler.UpdatePermissions)
+			r.Patch("/users/{id}/status", userHandler.UpdateStatus)
 		})
 	})
 

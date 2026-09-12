@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,20 +41,40 @@ func NewPool(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-// RunInitialMigration ejecuta el script up.sql si encuentra el archivo migrations/000001_init_schema.up.sql
-func RunInitialMigration(ctx context.Context, pool *pgxpool.Pool, migrationFilePath string) error {
-	// Verificar si el archivo de migración existe
-	cleanPath := filepath.Clean(migrationFilePath)
-	sqlBytes, err := os.ReadFile(cleanPath)
+// RunMigrations ejecuta todos los scripts *.up.sql en migrationsDir en orden alfanumérico
+func RunMigrations(ctx context.Context, pool *pgxpool.Pool, migrationsDir string) error {
+	cleanDir := filepath.Clean(migrationsDir)
+	entries, err := os.ReadDir(cleanDir)
 	if err != nil {
-		return fmt.Errorf("no se pudo leer el archivo de migración (%s): %w", cleanPath, err)
+		return fmt.Errorf("no se pudo leer el directorio de migraciones (%s): %w", cleanDir, err)
 	}
 
-	log.Printf("Ejecutando migración inicial desde: %s...", cleanPath)
-	if _, err := pool.Exec(ctx, string(sqlBytes)); err != nil {
-		return fmt.Errorf("error ejecutando migración inicial SQL: %w", err)
+	var upFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".up.sql") {
+			upFiles = append(upFiles, entry.Name())
+		}
+	}
+	sort.Strings(upFiles)
+
+	for _, file := range upFiles {
+		filePath := filepath.Join(cleanDir, file)
+		sqlBytes, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("error leyendo %s: %w", filePath, err)
+		}
+
+		log.Printf("Ejecutando migración SQL: %s...", file)
+		if _, err := pool.Exec(ctx, string(sqlBytes)); err != nil {
+			return fmt.Errorf("error ejecutando migración %s: %w", file, err)
+		}
 	}
 
-	log.Println("Migración inicial aplicada exitosamente en PostgreSQL")
+	log.Printf("Todas las migraciones (%d archivos) fueron aplicadas exitosamente.", len(upFiles))
 	return nil
+}
+
+// RunInitialMigration mantiene compatibilidad hacia atrás
+func RunInitialMigration(ctx context.Context, pool *pgxpool.Pool, migrationFilePath string) error {
+	return RunMigrations(ctx, pool, filepath.Dir(migrationFilePath))
 }
