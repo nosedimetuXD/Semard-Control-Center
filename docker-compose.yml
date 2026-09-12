@@ -35,8 +35,8 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       STORAGE_PATH: /app/storage
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-@unicartagena.edu.co}
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
       - semard_storage:/app/storage
 
