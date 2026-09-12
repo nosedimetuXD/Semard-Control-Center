@@ -1,7 +1,8 @@
 # SEMARD Control Center
 
 > **Semillero de Investigación SEMARD — Universidad de Cartagena**  
-> **Backend:** Go (Golang) | **Base de Datos:** PostgreSQL (Coolify VM) | **Frontend:** PWA (Next.js / React)
+> **Backend:** Go (Golang) | **Base de Datos:** PostgreSQL (Coolify VM) | **Frontend:** PWA (Next.js / React)  
+> 📋 **Plan de Desarrollo del Equipo:** [PLAN_DE_DESARROLLO.md](./PLAN_DE_DESARROLLO.md) (2 Backend + 2 Frontend)
 
 ---
 
