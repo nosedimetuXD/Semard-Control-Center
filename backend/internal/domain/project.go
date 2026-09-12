@@ -96,3 +96,55 @@ type ResourceRequest struct {
 	ReviewedAt       *time.Time     `json:"reviewed_at,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 }
+
+type CreateProjectMemberInput struct {
+	UserID uuid.UUID `json:"user_id"`
+	IsLead bool      `json:"is_lead"`
+}
+
+type CreateProjectRequest struct {
+	Title         string                     `json:"title"`
+	Description   string                     `json:"description"`
+	ResearchLine  string                     `json:"research_line"`
+	StartDate     time.Time                  `json:"start_date"`
+	TargetEndDate *time.Time                 `json:"target_end_date,omitempty"`
+	Members       []CreateProjectMemberInput `json:"members,omitempty"`
+}
+
+type UpdateProjectRequest struct {
+	Title         *string        `json:"title,omitempty"`
+	Description   *string        `json:"description,omitempty"`
+	ResearchLine  *string        `json:"research_line,omitempty"`
+	Status        *ProjectStatus `json:"status,omitempty"`
+	StartDate     *time.Time     `json:"start_date,omitempty"`
+	TargetEndDate *time.Time     `json:"target_end_date,omitempty"`
+}
+
+type AssignMemberRequest struct {
+	UserID uuid.UUID `json:"user_id"`
+	IsLead bool      `json:"is_lead"`
+}
+
+type CreateUpdateRequest struct {
+	Title          string   `json:"title"`
+	Content        string   `json:"content"`
+	AttachmentsURL []string `json:"attachments_url"`
+}
+
+type ReviewUpdateRequest struct {
+	Status           UpdateStatus `json:"status"`
+	DirectorFeedback string       `json:"director_feedback"`
+}
+
+type CreateResourceRequestInput struct {
+	ResourceType  ResourceType `json:"resource_type"`
+	Title         string       `json:"title"`
+	Description   string       `json:"description"`
+	EstimatedCost float64      `json:"estimated_cost"`
+}
+
+type ReviewResourceRequest struct {
+	Status           ResourceStatus `json:"status"`
+	DirectorFeedback string         `json:"director_feedback"`
+}
+

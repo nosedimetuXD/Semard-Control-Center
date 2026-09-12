@@ -60,6 +60,9 @@ func main() {
 	userHandler := handler.NewUserHandler(db)
 	eventHandler := handler.NewEventHandler(db)
 	hubHandler := handler.NewHubHandler(db)
+	projectHandler := handler.NewProjectHandler(db)
+	updateHandler := handler.NewUpdateHandler(db, projectHandler)
+	resourceHandler := handler.NewResourceHandler(db, projectHandler)
 
 	// 5. Definir Rutas
 	// 5.1 Monitoreo y Salud
@@ -128,6 +131,35 @@ func main() {
 			})
 		})
 
+		// Módulo Logístico de Proyectos, Avances y Recursos
+		r.Route("/projects", func(r chi.Router) {
+			r.Use(middleware.RequireAuth(cfg.JWTSecret))
+
+			// Vistas de proyectos
+			r.Get("/showcase", projectHandler.ListShowcase)
+			r.Get("/my-projects", projectHandler.ListMyProjects)
+			r.Get("/{id}", projectHandler.GetProject)
+
+			// Avances de proyecto (Encargados o Directores)
+			r.Get("/{id}/updates", updateHandler.ListUpdates)
+			r.Post("/{id}/updates", updateHandler.CreateUpdate)
+			r.With(middleware.RequireDirector()).Post("/updates/{updateId}/review", updateHandler.ReviewUpdate)
+
+			// Solicitudes de recursos de proyecto (Encargados o Directores)
+			r.Get("/{id}/resources", resourceHandler.ListProjectResources)
+			r.Post("/{id}/resources", resourceHandler.CreateResourceRequest)
+			r.With(middleware.RequireDirector()).Post("/resources/{resourceId}/review", resourceHandler.ReviewResource)
+
+			// Gestión de proyectos y asignación de encargados (Exclusivo Directores)
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireDirector())
+				r.Post("/", projectHandler.CreateProject)
+				r.Put("/{id}", projectHandler.UpdateProject)
+				r.Post("/{id}/members", projectHandler.AssignMember)
+				r.Delete("/{id}/members/{userId}", projectHandler.RemoveMember)
+			})
+		})
+
 		// Rutas protegidas exclusivas para Directores
 		r.Route("/directors", func(r chi.Router) {
 			r.Use(middleware.RequireAuth(cfg.JWTSecret))
@@ -141,6 +173,9 @@ func main() {
 			r.Patch("/users/{id}/role", userHandler.UpdateRole)
 			r.Patch("/users/{id}/permissions", userHandler.UpdatePermissions)
 			r.Patch("/users/{id}/status", userHandler.UpdateStatus)
+
+			// Bandeja global de recursos pendientes de aprobación
+			r.Get("/resources/pending", resourceHandler.ListPendingResources)
 		})
 	})
 
