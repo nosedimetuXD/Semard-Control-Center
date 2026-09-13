@@ -49,3 +49,35 @@ type LoanRequest struct {
 	Item *InventoryItem `json:"item,omitempty"`
 	User *User          `json:"user,omitempty"`
 }
+
+type CreateInventoryItemRequest struct {
+	Code        string  `json:"code"`
+	Name        string  `json:"name"`
+	Category    string  `json:"category"`
+	Description *string `json:"description,omitempty"`
+	TotalStock  int     `json:"total_stock"`
+	Location    *string `json:"location,omitempty"`
+}
+
+type UpdateInventoryItemRequest struct {
+	Name           *string `json:"name,omitempty"`
+	Category       *string `json:"category,omitempty"`
+	Description    *string `json:"description,omitempty"`
+	TotalStock     *int    `json:"total_stock,omitempty"`
+	AvailableStock *int    `json:"available_stock,omitempty"`
+	Location       *string `json:"location,omitempty"`
+}
+
+type CreateLoanRequestInput struct {
+	ItemID             uuid.UUID `json:"item_id"`
+	Reason             string    `json:"reason"`
+	RequestedStartDate time.Time `json:"requested_start_date"`
+	RequestedEndDate   time.Time `json:"requested_end_date"`
+}
+
+type ReviewLoanRequest struct {
+	Status           LoanStatus `json:"status"`
+	ApprovedEndDate  *time.Time `json:"approved_end_date,omitempty"`
+	ReviewerFeedback *string    `json:"reviewer_feedback,omitempty"`
+}
+

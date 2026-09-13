@@ -63,6 +63,9 @@ func main() {
 	projectHandler := handler.NewProjectHandler(db)
 	updateHandler := handler.NewUpdateHandler(db, projectHandler)
 	resourceHandler := handler.NewResourceHandler(db, projectHandler)
+	inventoryHandler := handler.NewInventoryHandler(db)
+	loanHandler := handler.NewLoanHandler(db)
+	print3DHandler := handler.NewPrint3DHandler(db, cfg.StoragePath)
 
 	// 5. Definir Rutas
 	// 5.1 Monitoreo y Salud
@@ -158,6 +161,57 @@ func main() {
 				r.Post("/{id}/members", projectHandler.AssignMember)
 				r.Delete("/{id}/members/{userId}", projectHandler.RemoveMember)
 			})
+		})
+
+		// Módulo de Inventario y Herramientas
+		r.Route("/inventory", func(r chi.Router) {
+			r.Use(middleware.RequireAuth(cfg.JWTSecret))
+
+			// Consulta de catálogo
+			r.Get("/", inventoryHandler.ListItems)
+			r.Get("/{id}", inventoryHandler.GetItem)
+
+			// Gestión exclusiva para Admins y Directores
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireAdminOrDirector())
+				r.Post("/", inventoryHandler.CreateItem)
+				r.Put("/{id}", inventoryHandler.UpdateItem)
+				r.Delete("/{id}", inventoryHandler.DeleteItem)
+			})
+		})
+
+		// Módulo de Préstamos de Equipos
+		r.Route("/loans", func(r chi.Router) {
+			r.Use(middleware.RequireAuth(cfg.JWTSecret))
+
+			// Solicitudes del miembro
+			r.Post("/requests", loanHandler.CreateRequest)
+			r.Get("/my-loans", loanHandler.ListMyLoans)
+
+			// Gestión exclusiva para Admins y Directores
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireAdminOrDirector())
+				r.Get("/", loanHandler.ListAllLoans)
+				r.Post("/{id}/review", loanHandler.ReviewLoan)
+				r.Post("/{id}/return", loanHandler.ReturnLoan)
+			})
+		})
+
+		// Módulo de Taller de Impresión 3D
+		r.Route("/print3d", func(r chi.Router) {
+			r.Use(middleware.RequireAuth(cfg.JWTSecret))
+
+			// Solicitud y consulta de cola
+			r.Post("/requests", print3DHandler.CreateRequest)
+			r.Get("/my-requests", print3DHandler.ListMyRequests)
+			r.Get("/queue", print3DHandler.ListQueue)
+			r.Get("/requests/{id}/download", print3DHandler.DownloadFile)
+
+			// Evaluación exclusiva para Admins y Directores
+			r.With(middleware.RequireAdminOrDirector()).Post("/requests/{id}/review", print3DHandler.ReviewRequest)
+
+			// Ejecución técnica de la cola (Operador 3D, Admin o Director)
+			r.With(middleware.Require3DOperator()).Post("/requests/{id}/status", print3DHandler.UpdateStatus)
 		})
 
 		// Rutas protegidas exclusivas para Directores

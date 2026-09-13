@@ -40,3 +40,14 @@ type Print3DRequest struct {
 	Project  *Project `json:"project,omitempty"`
 	Operator *User    `json:"operator,omitempty"`
 }
+
+type ReviewPrint3DRequest struct {
+	Status           Print3DStatus `json:"status"`
+	ReviewerFeedback *string       `json:"reviewer_feedback,omitempty"`
+}
+
+type UpdatePrint3DStatusRequest struct {
+	Status Print3DStatus `json:"status"`
+	Notes  *string       `json:"notes,omitempty"`
+}
+
