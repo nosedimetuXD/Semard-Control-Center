@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -174,6 +175,11 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
+			http.Redirect(w, r, "/test?token="+url.QueryEscape(jwtToken), http.StatusTemporaryRedirect)
+			return
+		}
+
 		JSON(w, http.StatusOK, LoginResponse{
 			Status:  "AUTHENTICATED",
 			Message: "Autenticación exitosa",
@@ -195,6 +201,10 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	if err == nil {
 		if reqStatus == domain.RegPending {
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/test?status=PENDING_APPROVAL&email="+url.QueryEscape(gUser.Email), http.StatusTemporaryRedirect)
+				return
+			}
 			JSON(w, http.StatusOK, LoginResponse{
 				Status:  "PENDING_APPROVAL",
 				Message: "Tu solicitud de membresía ya fue enviada y está en proceso de revisión por los Directores.",
@@ -206,6 +216,10 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			if feedback != nil && *feedback != "" {
 				msg += " Motivo: " + *feedback
 			}
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/test?status=REJECTED&msg="+url.QueryEscape(msg), http.StatusTemporaryRedirect)
+				return
+			}
 			JSON(w, http.StatusForbidden, LoginResponse{
 				Status:  "REJECTED",
 				Message: msg,
@@ -215,6 +229,15 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. No está registrado ni tiene solicitud pendiente: solicita completar datos
+	if strings.Contains(r.Header.Get("Accept"), "text/html") {
+		http.Redirect(w, r, fmt.Sprintf("/test?status=NEEDS_REGISTRATION&email=%s&name=%s&google_id=%s",
+			url.QueryEscape(gUser.Email),
+			url.QueryEscape(gUser.Name),
+			url.QueryEscape(gUser.ID),
+		), http.StatusTemporaryRedirect)
+		return
+	}
+
 	JSON(w, http.StatusOK, LoginResponse{
 		Status:  "NEEDS_REGISTRATION",
 		Message: "Correo institucional verificado. Completa tu código estudiantil para solicitar ingreso al semillero.",

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -68,13 +69,19 @@ func main() {
 	print3DHandler := handler.NewPrint3DHandler(db, cfg.StoragePath)
 
 	// 5. Definir Rutas
-	// 5.1 Monitoreo y Salud
+	// 5.1 Monitoreo, Test Studio y Salud
 	r.Get("/healthz", healthHandler.Check)
+	r.Get("/test", handler.ServeTestUI)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
+			handler.ServeTestUI(w, r)
+			return
+		}
 		handler.JSON(w, http.StatusOK, map[string]string{
 			"app":     "SEMARD Control Center API",
 			"version": "1.0.0",
 			"status":  "operational",
+			"test_ui": "/test",
 			"docs":    "/healthz",
 		})
 	})
