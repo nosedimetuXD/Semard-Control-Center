@@ -71,11 +71,52 @@ type LoginResponse struct {
 	} `json:"google_data,omitempty"`
 }
 
+type OAuthState struct {
+	Nonce    string `json:"n"`
+	ReturnTo string `json:"r,omitempty"`
+}
+
+func encodeOAuthState(returnTo string) string {
+	b := make([]byte, 12)
+	_, _ = rand.Read(b)
+	nonce := base64.RawURLEncoding.EncodeToString(b)
+	s := OAuthState{Nonce: nonce, ReturnTo: returnTo}
+	j, _ := json.Marshal(s)
+	return base64.RawURLEncoding.EncodeToString(j)
+}
+
+func decodeOAuthState(raw string) string {
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		data, err = base64.URLEncoding.DecodeString(raw)
+		if err != nil {
+			return ""
+		}
+	}
+	var s OAuthState
+	if err := json.Unmarshal(data, &s); err == nil {
+		if strings.HasPrefix(s.ReturnTo, "http://") || strings.HasPrefix(s.ReturnTo, "https://") || strings.HasPrefix(s.ReturnTo, "/") {
+			return s.ReturnTo
+		}
+	}
+	return ""
+}
+
+func buildRedirectURL(baseTarget, params string) string {
+	sep := "?"
+	if strings.Contains(baseTarget, "?") {
+		sep = "&"
+	}
+	return baseTarget + sep + params
+}
+
 // GoogleLogin inicia el flujo OAuth y devuelve la URL o redirige al navegador
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	state := base64.URLEncoding.EncodeToString(b)
+	returnTo := r.URL.Query().Get("return_to")
+	if returnTo == "" {
+		returnTo = r.URL.Query().Get("redirect_url")
+	}
+	state := encodeOAuthState(returnTo)
 
 	// Solicitar prompt select_account para permitir elegir cuenta institucional
 	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "select_account"))
@@ -98,6 +139,12 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if code == "" {
 		Error(w, http.StatusBadRequest, "Código de autorización no provisto")
 		return
+	}
+
+	returnTo := decodeOAuthState(r.URL.Query().Get("state"))
+	targetBase := "/test"
+	if returnTo != "" {
+		targetBase = returnTo
 	}
 
 	ctx := r.Context()
@@ -175,8 +222,9 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if strings.Contains(r.Header.Get("Accept"), "text/html") {
-			http.Redirect(w, r, "/test?token="+url.QueryEscape(jwtToken), http.StatusTemporaryRedirect)
+		if returnTo != "" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+			redirectURL := buildRedirectURL(targetBase, "token="+url.QueryEscape(jwtToken)+"&status=AUTHENTICATED")
+			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 			return
 		}
 
@@ -201,8 +249,9 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	if err == nil {
 		if reqStatus == domain.RegPending {
-			if strings.Contains(r.Header.Get("Accept"), "text/html") {
-				http.Redirect(w, r, "/test?status=PENDING_APPROVAL&email="+url.QueryEscape(gUser.Email), http.StatusTemporaryRedirect)
+			if returnTo != "" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+				redirectURL := buildRedirectURL(targetBase, "status=PENDING_APPROVAL&email="+url.QueryEscape(gUser.Email))
+				http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 				return
 			}
 			JSON(w, http.StatusOK, LoginResponse{
@@ -216,8 +265,9 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			if feedback != nil && *feedback != "" {
 				msg += " Motivo: " + *feedback
 			}
-			if strings.Contains(r.Header.Get("Accept"), "text/html") {
-				http.Redirect(w, r, "/test?status=REJECTED&msg="+url.QueryEscape(msg), http.StatusTemporaryRedirect)
+			if returnTo != "" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+				redirectURL := buildRedirectURL(targetBase, "status=REJECTED&msg="+url.QueryEscape(msg))
+				http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 				return
 			}
 			JSON(w, http.StatusForbidden, LoginResponse{
@@ -229,12 +279,13 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. No está registrado ni tiene solicitud pendiente: solicita completar datos
-	if strings.Contains(r.Header.Get("Accept"), "text/html") {
-		http.Redirect(w, r, fmt.Sprintf("/test?status=NEEDS_REGISTRATION&email=%s&name=%s&google_id=%s",
+	if returnTo != "" || strings.Contains(r.Header.Get("Accept"), "text/html") {
+		redirectURL := buildRedirectURL(targetBase, fmt.Sprintf("status=NEEDS_REGISTRATION&email=%s&name=%s&google_id=%s",
 			url.QueryEscape(gUser.Email),
 			url.QueryEscape(gUser.Name),
 			url.QueryEscape(gUser.ID),
-		), http.StatusTemporaryRedirect)
+		))
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 		return
 	}
 
